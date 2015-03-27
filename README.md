@@ -4,7 +4,7 @@ A Clojure library for rate limiting ring applications.
 
 ## Installation
 
-TBD
+[ring-venturi "0.1.0"]
 
 ## Usage
 
