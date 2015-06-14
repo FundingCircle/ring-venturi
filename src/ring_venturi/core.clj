@@ -8,47 +8,93 @@
   {:status 429
    :body (json/write-str {:message "Exceeded limit"})})
 
-(def ^:private format-time-to-mins (partial f/unparse (f/formatter "yyyy-MM-dd hh:mm")))
+(def ^:private format-time-to-mins
+  (partial f/unparse
+           (f/formatter "yyyy-MM-dd'T'hh:mm")))
 
-(defn- build-bucket-key [request-id time]
-  "Builds a key to represent this request and time"
-  (str "rate-limit-" request-id "-" (format-time-to-mins time)))
+(def ^:private format-time-to-sec
+  (partial f/unparse
+           (f/formatter "yyyy-MM-dd'T'hh:mm:ss")))
 
-(defn bucket-seq [request-id]
-  "Creates an infinite sequence of bucket keys in descending order"
-  (let [time-seq (p/periodic-seq (t/now)
-                                 (t/minutes -1))]
-    (map (partial build-bucket-key request-id) time-seq)))
+(def ^:private format-time-to-millis
+  (partial f/unparse
+           (f/formatter "yyyy-MM-dd'T'hh:mm:ss:S")))
 
-(defn- inc-request-count! [cache bucket-key]
-  "Increments the number of requests in this bucket"
-  (.inc-or-set cache bucket-key 1 3600 1))
+(defprotocol RateLimiter
+  (time-seq [this now]
+            "Sequence of time strings, from newest to oldest,
+            that are relevant to the given time.
+            (Limiting requests by hour should be a sequence of
+            60 times differing by one minute)")
+  (inc-or-set-cache [this cache bucket-key]
+             "Increments or sets the number of requests for a given bucket key.
+             (Limiting requests by hour should expire the key after an hour)"))
+
+(defrecord HourRateLimiter [limit]
+  RateLimiter
+  (time-seq [this now]
+    (map format-time-to-mins (take 60
+                                   (p/periodic-seq now (t/minutes -1)))))
+  (inc-or-set-cache [this cache bucket-key]
+    (.inc-or-set cache bucket-key 1 3600 1)))
+
+(defrecord MinuteRateLimiter [limit]
+  RateLimiter
+  (time-seq [this now]
+    (map format-time-to-sec (take 60
+                                  (p/periodic-seq now (t/seconds -1)))))
+  (inc-or-set-cache [this cache bucket-key]
+    (.inc-or-set cache bucket-key 1 60 1)))
+
+(defrecord SecondRateLimiter [limit]
+  RateLimiter
+  (time-seq [this now]
+    (map format-time-to-millis (take 10
+                                     (p/periodic-seq now (t/millis -100)))))
+  (inc-or-set-cache [this cache bucket-key]
+    (.inc-or-set cache bucket-key 1 1 1)))
+
+(defn- bucket-seq [request-id rate-limiter]
+  (let [time-seq (.time-seq rate-limiter (t/now))]
+    (map #(str "rate-limit-" request-id "-" %1) time-seq)))
 
 (defn- count-requests [cache bucket-keys]
-  "Counts the number of requests this user has made in the last hour"
-  (let [request-keys (take 60 bucket-keys)
-        request-counts (map #(java.lang.Integer/parseInt % 10) (.get-all cache request-keys))]
+  "Counts the number of requests this user has made"
+  (let [request-counts (map #(java.lang.Integer/parseInt % 10)
+                            (.get-all cache bucket-keys))]
     (reduce + request-counts)))
 
-(defn- exceeds-limit? [cache bucket-keys max-requests-per-hour]
+(defn- exceeds-limit? [cache bucket-keys rate-limiter]
   "Determines if another request would exceed the request limit"
   (let [num-requests (count-requests cache bucket-keys)]
-    (>= num-requests max-requests-per-hour)))
+    (>= num-requests (:limit rate-limiter))))
 
-(defn- limit-rate* [handler cache max-requests-per-hour request request-id]
-  (let [bucket-keys (bucket-seq request-id)]
-    (if-not (exceeds-limit? cache bucket-keys max-requests-per-hour)
+(defn- limit-rate* [handler cache rate-limiter request request-id]
+  (let [bucket-keys (bucket-seq request-id rate-limiter)]
+    (if-not (exceeds-limit? cache bucket-keys rate-limiter)
       (do
-        (inc-request-count! cache (first bucket-keys))
+        (.inc-or-set-cache rate-limiter cache (first bucket-keys))
         (handler request))
       exceeded-limit-response)))
 
-(defn limit-requests-per-hour [handler cache opts]
-  (let [{:keys [limit identifier-fn]} opts]
+(defn- new-hour-limiter [limit]
+  (HourRateLimiter. limit))
+(defn- new-minute-limiter [limit]
+  (MinuteRateLimiter. limit))
+(defn- new-second-limiter [limit]
+  (SecondRateLimiter. limit))
+
+(defn- limit-requests [limiter-builder handler cache opts]
+  (let [{:keys [limit identifier-fn]} opts
+        rate-limiter (limiter-builder limit)]
     (fn [request]
       (let [request-id (identifier-fn request)]
         (limit-rate* handler
                      cache
-                     limit
+                     rate-limiter
                      request
                      request-id)))))
+
+(def limit-requests-per-hour   (partial limit-requests new-hour-limiter))
+(def limit-requests-per-minute (partial limit-requests new-minute-limiter))
+(def limit-requests-per-second (partial limit-requests new-second-limiter))
