@@ -8,8 +8,8 @@
   (get-all [this keys]
     (memcached-client/get-multi client keys))
 
-  (inc-or-set [this key inc-amount expire value]
-    (memcached-client/incr client key inc-amount value expire)))
+  (inc-or-set [this key expire]
+    (memcached-client/incr client key 1 1 expire)))
 
 (defn new-cache [client]
   (Memcached. client))

@@ -36,7 +36,7 @@
     (map format-time-to-mins (take 60
                                    (p/periodic-seq now (t/minutes -1)))))
   (inc-or-set-cache [this cache bucket-key]
-    (.inc-or-set cache bucket-key 1 3600 1)))
+    (.inc-or-set cache bucket-key 3600)))
 
 (defrecord MinuteRateLimiter [limit]
   RateLimiter
@@ -44,7 +44,7 @@
     (map format-time-to-sec (take 60
                                   (p/periodic-seq now (t/seconds -1)))))
   (inc-or-set-cache [this cache bucket-key]
-    (.inc-or-set cache bucket-key 1 60 1)))
+    (.inc-or-set cache bucket-key 60)))
 
 (defrecord SecondRateLimiter [limit]
   RateLimiter
@@ -52,7 +52,7 @@
     (map format-time-to-millis (take 10
                                      (p/periodic-seq now (t/millis -100)))))
   (inc-or-set-cache [this cache bucket-key]
-    (.inc-or-set cache bucket-key 1 1 1)))
+    (.inc-or-set cache bucket-key 1)))
 
 (defn- bucket-seq [request-id rate-limiter]
   (let [time-seq (.time-seq rate-limiter (t/now))]
