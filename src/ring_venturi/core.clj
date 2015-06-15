@@ -26,7 +26,7 @@
             that are relevant to the given time.
             (Limiting requests by hour should be a sequence of
             60 times differing by one minute)")
-  (inc-or-set-cache [this cache bucket-key]
+  (inc-cache [this cache bucket-key]
              "Increments or sets the number of requests for a given bucket key.
              (Limiting requests by hour should expire the key after an hour)"))
 
@@ -35,24 +35,24 @@
   (time-seq [this now]
     (map format-time-to-mins (take 60
                                    (p/periodic-seq now (t/minutes -1)))))
-  (inc-or-set-cache [this cache bucket-key]
-    (.inc-or-set cache bucket-key 3600)))
+  (inc-cache [this cache bucket-key]
+    (.inc-request-count cache bucket-key 3600)))
 
 (defrecord MinuteRateLimiter [limit]
   RateLimiter
   (time-seq [this now]
     (map format-time-to-sec (take 60
                                   (p/periodic-seq now (t/seconds -1)))))
-  (inc-or-set-cache [this cache bucket-key]
-    (.inc-or-set cache bucket-key 60)))
+  (inc-cache [this cache bucket-key]
+    (.inc-request-count cache bucket-key 60)))
 
 (defrecord SecondRateLimiter [limit]
   RateLimiter
   (time-seq [this now]
     (map format-time-to-millis (take 10
                                      (p/periodic-seq now (t/millis -100)))))
-  (inc-or-set-cache [this cache bucket-key]
-    (.inc-or-set cache bucket-key 1)))
+  (inc-cache [this cache bucket-key]
+    (.inc-request-count cache bucket-key 1)))
 
 (defn- bucket-seq [request-id rate-limiter]
   (let [time-seq (.time-seq rate-limiter (t/now))]
@@ -60,8 +60,7 @@
 
 (defn- count-requests [cache bucket-keys]
   "Counts the number of requests this user has made"
-  (let [request-counts (map #(java.lang.Integer/parseInt % 10)
-                            (.get-all cache bucket-keys))]
+  (let [request-counts (.get-request-counts cache bucket-keys)]
     (reduce + request-counts)))
 
 (defn- exceeds-limit? [cache bucket-keys rate-limiter]
@@ -73,7 +72,7 @@
   (let [bucket-keys (bucket-seq request-id rate-limiter)]
     (if-not (exceeds-limit? cache bucket-keys rate-limiter)
       (do
-        (.inc-or-set-cache rate-limiter cache (first bucket-keys))
+        (.inc-cache rate-limiter cache (first bucket-keys))
         (handler request))
       exceeded-limit-response)))
 

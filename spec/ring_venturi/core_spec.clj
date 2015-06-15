@@ -12,10 +12,10 @@
 (defrecord AtomCache [atom-cache]
   cache/Cache
 
-  (get-all [this keys]
-    (map str (map #(get @atom-cache %1 0) keys)))
+  (get-request-counts [this keys]
+    (map #(get @atom-cache %1 0) keys))
 
-  (inc-or-set [this key expire]
+  (inc-request-count [this key expire]
     (swap! atom-cache inc-in key)))
 
 (describe "ring-venturi.rate-limit-spec"
@@ -34,9 +34,9 @@
 
       (before
         ; This request should be ignored
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T08:31" 3600)
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T08:31" 3600)
         ; This request should be counted
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:30" 3600))
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:30" 3600))
 
       (it "forwards request when under limit"
         (should= 200
@@ -55,8 +55,8 @@
                                                :identifier-fn :id}))
 
       (before
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T08:32" 3600)
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:29" 3600))
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T08:32" 3600)
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:29" 3600))
 
       (it "has too many requests"
         (should= 429
@@ -77,9 +77,9 @@
 
       (before
         ; This request should be ignored
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:30:27" 3600)
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:30:27" 3600)
         ; This request should be counted
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:31:26" 3600))
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:31:26" 3600))
 
       (it "forwards request when under limit"
         (should= 200
@@ -98,8 +98,8 @@
                                                  :identifier-fn :id}))
 
       (before
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:30:28" 3600)
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:31:26" 3600))
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:30:28" 3600)
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:31:26" 3600))
 
       (it "has too many requests"
         (should= 429
@@ -120,9 +120,9 @@
 
       (before
         ; This request should be ignored
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:31:26:4" 3600)
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:31:26:4" 3600)
         ; This request should be counted
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:31:27:3" 3600))
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:31:27:3" 3600))
 
       (it "forwards request when under limit"
         (should= 200
@@ -141,8 +141,8 @@
                                                  :identifier-fn :id}))
 
       (before
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:31:26:5" 3600)
-        (.inc-or-set @cache "rate-limit-1-2015-06-14T09:31:27:1" 3600))
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:31:26:5" 3600)
+        (.inc-request-count @cache "rate-limit-1-2015-06-14T09:31:27:1" 3600))
 
       (it "has too many requests"
         (should= 429
