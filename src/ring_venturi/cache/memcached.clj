@@ -10,7 +10,7 @@
 
   (get-request-counts [this keys]
     (map parse-int
-         (memcached-client/get-multi client keys)))
+         (vals (memcached-client/get-multi client keys))))
 
   (inc-request-count [this key expire]
     (memcached-client/incr client key 1 1 expire)))
