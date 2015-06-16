@@ -12,7 +12,8 @@ _WARNING: Alpha software, breaking changes ahead!_
 
 ### Frequency based limiting
 
-Only in-memory atom storage is implemented. This will only allow requests through at a fixed interval.
+Only in-memory atom storage is implemented. This will only allow
+requests through at a fixed interval.
 
 ```clojure
 (ns my-app.core
@@ -25,7 +26,7 @@ Only in-memory atom storage is implemented. This will only allow requests throug
    :headers {"Content-Type" "text/plain"}
    :body "I'm in!"})
 
-(def cache (frequency/atom-based-limiter 10000)) ;; 1 request per second!
+(def cache (frequency/in-memory-limiter 1000)) ;; 1 request per second!
 
 (def app (-> handler
              (frequency/limit cache :query-string)))

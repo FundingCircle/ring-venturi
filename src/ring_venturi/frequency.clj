@@ -9,15 +9,15 @@
   (block? [this k] "Checks if the request should be blocked.")
   (backoff! [this k] "Adds an identifier for something to block"))
 
-(deftype AtomStore [ttl-cache]
+(deftype InMemoryLimiter [ttl-cache]
   FrequencyLimiter
   (block? [this k]
     (cache/has? @ttl-cache k))
   (backoff! [this k]
     (swap! ttl-cache cache/miss k true )))
 
-(defn atom-based-limiter [ttl-millis]
-  (AtomStore.
+(defn in-memory-limiter [ttl-millis]
+  (InMemoryLimiter.
    (atom (cache/ttl-cache-factory {} :ttl ttl-millis))))
 
 (defn limit [handler limiter id-fn]

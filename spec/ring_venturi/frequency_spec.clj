@@ -6,7 +6,7 @@
 
 (describe "ring-venturi.frequency"
   (with handler (constantly {:status 200}))
-  (with limiter (frequency/atom-based-limiter 1000))
+  (with limiter (frequency/in-memory-limiter 1000))
   (with app (frequency/limit @handler @limiter :id ))
   (with request {:id 1})
 
