@@ -11,7 +11,7 @@
   (with request {:id 1})
 
   (describe "the first request"
-    (it "gets though"
+    (it "gets through"
         (should= 200 (:status (@app @request)))))
 
   (describe "a second request within the backoff"
