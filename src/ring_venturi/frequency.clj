@@ -1,8 +1,7 @@
 (ns ring-venturi.frequency
   (:require [clojure.core.cache :as cache]))
 
-(def backoff-response {:status 429
-                       :body  "Rate limit execeeded"})
+(def backoff-response {:status 429})
 
 (defprotocol FrequencyLimiter
   "Determine if a request should be blocked, "
