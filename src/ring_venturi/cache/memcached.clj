@@ -2,14 +2,18 @@
   (:require [clojurewerkz.spyglass.client :as memcached-client]
             [ring-venturi.cache.base :as base]))
 
+(defn- parse-int [n]
+  (Integer/parseInt n 10))
+
 (deftype Memcached [client]
   base/Cache
 
-  (get-all [this keys]
-    (memcached-client/get-multi client keys))
+  (get-request-counts [this keys]
+    (map parse-int
+         (vals (memcached-client/get-multi client keys))))
 
-  (inc-or-set [this key inc-amount expire value]
-    (memcached-client/incr client key inc-amount value expire)))
+  (inc-request-count [this key expire]
+    (memcached-client/incr client key 1 1 expire)))
 
 (defn new-cache [client]
   (Memcached. client))
