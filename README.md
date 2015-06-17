@@ -4,9 +4,39 @@ A Clojure library for rate limiting ring applications.
 
 ## Installation
 
-[ring-venturi "0.1.0"]
+[![Clojars Project](http://clojars.org/ring-venturi/latest-version.svg)](http://clojars.org/ring-venturi)
+
+_WARNING: Alpha software, breaking changes ahead!_
 
 ## Usage
+
+### Frequency based limiting
+
+Only in-memory atom storage is implemented. This will only allow
+requests through at a fixed interval.
+
+```clojure
+(ns my-app.core
+  (:require [boot.core :as b]
+            [ring.adapter.jetty :as jetty]
+            [ring-venturi.frequency :as frequency]))
+
+(defn handler [r]
+  {:status 200
+   :headers {"Content-Type" "text/plain"}
+   :body "I'm in!"})
+
+(def cache (frequency/in-memory-limiter 1000)) ;; 1 request per second!
+
+(def app (-> handler
+             (frequency/limit cache :query-string)))
+
+(b/deftask server []
+  (jetty/run-jetty app {:port 3000}))
+```
+
+### Period based limiting
+
 
 ```clojure
 (ns myapp.core
@@ -22,9 +52,10 @@ A Clojure library for rate limiting ring applications.
                                                                    :identifier-fn (fn [request] (:id request)})))
 ```
 
-The rate limit middleware is responsible for limiting the number of requests a user can make in a time period.
-The rate limit function requires a cache to store request counts and an identifier function to map the request to a
-user.
+The rate limit middleware is responsible for limiting the number of
+requests a user can make in a time period.  The rate limit function
+requires a cache to store request counts and an identifier function to
+map the request to a user.
 
 ### Supported Limits
 
