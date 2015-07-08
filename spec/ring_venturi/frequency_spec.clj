@@ -3,7 +3,6 @@
             [speclj.core :refer :all]
             speclj.run.standard))
 
-
 (describe "ring-venturi.frequency"
   (with handler (constantly {:status 200}))
   (with limiter (frequency/in-memory-limiter 1000))
@@ -24,6 +23,11 @@
               (@app @request)
               (Thread/sleep 1000)))
     (it "gets through"
-        (should= 200 (:status (@app @request))))))
+        (should= 200 (:status (@app @request)))))
+
+  (describe "when request has no user"
+    (before (@app {}))
+    (it "gets through"
+        (should= 200 (:status (@app {}))))))
 
 (run-specs)

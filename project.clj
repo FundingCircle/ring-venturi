@@ -1,4 +1,4 @@
-(defproject ring-venturi "0.2.0"
+(defproject ring-venturi "0.2.1"
   :description "Ring rate limiter"
   :url "https://github.com/FundingCircle/ring-venturi"
   :license {:name "BSD 3-clause"

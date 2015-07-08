@@ -22,9 +22,10 @@
 
 (defn limit [handler limiter id-fn]
   (fn [request]
-    (let [id (id-fn request)]
+    (if-let [id (id-fn request)]
       (if (block? limiter id)
         backoff-response
         (do
           (backoff! limiter id)
-          (handler request))))))
+          (handler request)))
+      (handler request))))
