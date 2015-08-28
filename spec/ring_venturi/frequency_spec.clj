@@ -3,7 +3,7 @@
             [speclj.core :refer :all]
             speclj.run.standard))
 
-(describe "ring-venturi.frequency"
+(describe "in-memory-limiter"
   (with handler (constantly {:status 200}))
   (with limiter (frequency/in-memory-limiter 1000))
   (with app (frequency/limit @handler @limiter :id ))
