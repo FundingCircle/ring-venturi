@@ -1,5 +1,5 @@
 (ns ring-venturi.core-spec
-  (:require [ring-venturi.cache.base :as cache]
+  (:require [ring-venturi.cache :as cache]
             [ring-venturi.core :refer :all]
             [speclj.core :refer :all]
             [clj-time.core :as t]

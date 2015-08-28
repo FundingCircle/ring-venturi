@@ -1,5 +1,5 @@
-(ns ring-venturi.cache.memcached-spec
-  (:require [ring-venturi.cache.memcached :refer :all]
+(ns ring-venturi.cache
+  (:require [ring-venturi.cache :refer :all]
             [speclj.core :refer :all]
             [clojurewerkz.spyglass.client :as c]
             speclj.run.standard))
@@ -7,8 +7,8 @@
 (def memcached-client (delay (c/text-connection "localhost:11211")))
 (def expire-secs 60)
 
-(describe "ring-venturi.cache.memcached"
-  (with cache (new-cache @memcached-client))
+(describe "memcached"
+  (with cache (new-memcached-cache @memcached-client))
 
   (before
     (doseq [key ["key-1" "key-2"]]
