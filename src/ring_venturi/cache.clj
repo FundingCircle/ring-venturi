@@ -1,7 +1,7 @@
 (ns ring-venturi.cache
   (:require [clojurewerkz.spyglass.client :as memcached-client]))
 
-(defprotocol Cache
+(defprotocol PeriodCache
   "Caches request counts for tracking user requests."
 
   (get-request-counts [this keys]
@@ -10,12 +10,11 @@
   (inc-request-count [this key expire]
                      "Increment the counter if it exists, otherwise create it"))
 
-
 (defn- parse-int [n]
   (Integer/parseInt n 10))
 
 (deftype Memcached [client]
-  Cache
+  PeriodCache
 
   (get-request-counts [this keys]
     (map parse-int

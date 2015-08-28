@@ -1,6 +1,6 @@
-(ns ring-venturi.core-spec
+(ns ring-venturi.period-spec
   (:require [ring-venturi.cache :as cache]
-            [ring-venturi.core :refer :all]
+            [ring-venturi.period :refer :all]
             [speclj.core :refer :all]
             [clj-time.core :as t]
             speclj.run.standard))
@@ -10,7 +10,7 @@
     (assoc m key (inc current-value))))
 
 (defrecord AtomCache [atom-cache]
-  cache/Cache
+  cache/PeriodCache
 
   (get-request-counts [this keys]
     (map #(get @atom-cache %1 0) keys))
@@ -18,7 +18,7 @@
   (inc-request-count [this key expire]
     (swap! atom-cache inc-in key)))
 
-(describe "ring-venturi.rate-limit-spec"
+(describe "rate-limit-spec"
   (with cache (AtomCache. (atom {})))
 
   (around [it]

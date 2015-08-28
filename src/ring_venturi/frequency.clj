@@ -3,14 +3,14 @@
 
 (def backoff-response {:status 429})
 
-(defprotocol FrequencyLimiter
+(defprotocol FrequencyRateLimiter
   "Determine if a request should be blocked, or marked for backoff
   period."
   (block? [this k] "Checks if the request should be blocked.")
   (backoff! [this k] "Adds an identifier for something to block"))
 
 (deftype InMemoryLimiter [ttl-cache]
-  FrequencyLimiter
+  FrequencyRateLimiter
   (block? [this k]
     (cache/has? @ttl-cache k))
   (backoff! [this k]

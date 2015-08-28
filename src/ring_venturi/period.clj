@@ -1,4 +1,4 @@
-(ns ring-venturi.core
+(ns ring-venturi.period
   (:require [clj-time.core :as t]
             [clj-time.format :as f]
             [clj-time.periodic :as p]
@@ -20,7 +20,7 @@
   (partial f/unparse
            (f/formatter "yyyy-MM-dd'T'hh:mm:ss:S")))
 
-(defprotocol RateLimiter
+(defprotocol PeriodRateLimiter
   (time-seq [this now]
             "Sequence of time strings, from newest to oldest,
             that are relevant to the given time.
@@ -31,7 +31,7 @@
              (Limiting requests by hour should expire the key after an hour)"))
 
 (defrecord HourRateLimiter [limit]
-  RateLimiter
+  PeriodRateLimiter
   (time-seq [this now]
     (map format-time-to-mins (take 60
                                    (p/periodic-seq now (t/minutes -1)))))
@@ -39,7 +39,7 @@
     (.inc-request-count cache bucket-key 3600)))
 
 (defrecord MinuteRateLimiter [limit]
-  RateLimiter
+  PeriodRateLimiter
   (time-seq [this now]
     (map format-time-to-sec (take 60
                                   (p/periodic-seq now (t/seconds -1)))))
@@ -47,7 +47,7 @@
     (.inc-request-count cache bucket-key 60)))
 
 (defrecord SecondRateLimiter [limit]
-  RateLimiter
+  PeriodRateLimiter
   (time-seq [this now]
     (map format-time-to-millis (take 10
                                      (p/periodic-seq now (t/millis -100)))))
