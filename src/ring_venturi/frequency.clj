@@ -2,11 +2,9 @@
   (:require [clj-time.core :as t]
             [clj-time.format :as f]
             [clj-time.periodic :as p]
+            [ring-venturi.core :as core]
+            [clojurewerkz.spyglass.client :as mc]
             [clojure.data.json :as json]))
-
-(def ^:private exceeded-limit-response
-  {:status 429
-   :body (json/write-str {:message "Exceeded limit"})})
 
 (def ^:private format-time-to-mins
   (partial f/unparse
@@ -20,80 +18,63 @@
   (partial f/unparse
            (f/formatter "yyyy-MM-dd'T'hh:mm:ss:S")))
 
-(defprotocol FrequencyRateLimiter
-  (time-seq [this now]
-            "Sequence of time strings, from newest to oldest,
-            that are relevant to the given time.
-            (Limiting requests by hour should be a sequence of
-            60 times differing by one minute)")
-  (inc-cache [this cache bucket-key]
-             "Increments or sets the number of requests for a given bucket key.
-             (Limiting requests by hour should expire the key after an hour)"))
+(defn- parse-int [n]
+  (Integer/parseInt n 10))
 
-(defrecord HourRateLimiter [limit]
-  FrequencyRateLimiter
-  (time-seq [this now]
-    (map format-time-to-mins (take 60
-                                   (p/periodic-seq now (t/minutes -1)))))
-  (inc-cache [this cache bucket-key]
-    (.inc-request-count cache bucket-key 3600)))
+(defn- time-unit->seconds [time-unit]
+  (case time-unit
+    :hours 3600
+    :minutes 60
+    :seconds 1))
 
-(defrecord MinuteRateLimiter [limit]
-  FrequencyRateLimiter
-  (time-seq [this now]
-    (map format-time-to-sec (take 60
-                                  (p/periodic-seq now (t/seconds -1)))))
-  (inc-cache [this cache bucket-key]
-    (.inc-request-count cache bucket-key 60)))
+(defn- time-unit->time-seq [time-unit now]
+  (case time-unit
+    :hours   (map format-time-to-mins   (take 60 (p/periodic-seq now (t/minutes -1))))
+    :minutes (map format-time-to-sec    (take 60 (p/periodic-seq now (t/seconds -1))))
+    :seconds (map format-time-to-millis (take 10 (p/periodic-seq now (t/millis -100))))))
 
-(defrecord SecondRateLimiter [limit]
-  FrequencyRateLimiter
-  (time-seq [this now]
-    (map format-time-to-millis (take 10
-                                     (p/periodic-seq now (t/millis -100)))))
-  (inc-cache [this cache bucket-key]
-    (.inc-request-count cache bucket-key 1)))
+(defn- bucket-seq [prefix request-id time-unit]
+  (let [time-seq (time-unit->time-seq time-unit (t/now))]
+    (map #(str prefix "-" request-id "-" %1) time-seq)))
 
-(defn- bucket-seq [request-id rate-limiter]
-  (let [time-seq (.time-seq rate-limiter (t/now))]
-    (map #(str "rate-limit-" request-id "-" %1) time-seq)))
+(defprotocol FrequencyStore
+  (configure [this req-limit time-unit]))
 
-(defn- count-requests [cache bucket-keys]
-  "Counts the number of requests this user has made"
-  (let [request-counts (.get-request-counts cache bucket-keys)]
-    (reduce + request-counts)))
+(defrecord MemcachedStore [client key-prefix]
+  FrequencyStore
 
-(defn- exceeds-limit? [cache bucket-keys rate-limiter]
-  "Determines if another request would exceed the request limit"
-  (let [num-requests (count-requests cache bucket-keys)]
-    (>= num-requests (:limit rate-limiter))))
+  (configure [this req-limit time-unit]
+    (assoc this :req-limit req-limit
+                :time-unit time-unit))
 
-(defn- limit-rate* [handler cache rate-limiter request request-id]
-  (let [bucket-keys (bucket-seq request-id rate-limiter)]
-    (if-not (exceeds-limit? cache bucket-keys rate-limiter)
-      (do
-        (.inc-cache rate-limiter cache (first bucket-keys))
-        (handler request))
-      exceeded-limit-response)))
+  core/RateLimiter
 
-(defn- new-hour-limiter [limit]
-  (HourRateLimiter. limit))
-(defn- new-minute-limiter [limit]
-  (MinuteRateLimiter. limit))
-(defn- new-second-limiter [limit]
-  (SecondRateLimiter. limit))
+  (try-make-request [this client-id]
+    (let [bucket-keys (bucket-seq key-prefix client-id (:time-unit this))
+          num-requests (->> (mc/get-multi client bucket-keys)
+                            vals
+                            (map parse-int)
+                            (reduce + 0))]
+      (if (>= num-requests (:req-limit this))
+        false
+        (do
+          (mc/incr client
+                   (first bucket-keys)
+                   1 ; Inc by
+                   1 ; Default val
+                   (time-unit->seconds (:time-unit this)))
+          true)))))
 
-(defn- limit-requests [limiter-builder handler cache opts]
-  (let [{:keys [limit identifier-fn]} opts
-        rate-limiter (limiter-builder limit)]
-    (fn [request]
-      (let [request-id (identifier-fn request)]
-        (limit-rate* handler
-                     cache
-                     rate-limiter
-                     request
-                     request-id)))))
+(defn memcached-backend
+  ([client] (memcached-backend client {}))
+  ([client opts]
+   (MemcachedStore. client (get opts :key-prefix "rate-limiter"))))
 
-(def limit-requests-per-hour   (partial limit-requests new-hour-limiter))
-(def limit-requests-per-minute (partial limit-requests new-minute-limiter))
-(def limit-requests-per-second (partial limit-requests new-second-limiter))
+(defn per-hour [req-limit backend]
+  (.configure backend req-limit :hours))
+
+(defn per-minute [req-limit backend]
+  (.configure backend req-limit :minutes))
+
+(defn per-second [req-limit backend]
+  (.configure backend req-limit :seconds))

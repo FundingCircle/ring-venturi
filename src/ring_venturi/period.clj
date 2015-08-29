@@ -1,36 +1,32 @@
 (ns ring-venturi.period
   (:require [clojure.core.cache :as cache]
             [clj-time.core :as t]
+            [ring-venturi.core :as core]
             [clj-time.coerce :as tc]
             [clojurewerkz.spyglass.client :as c]))
 
-(def backoff-response {:status 429})
+(defprotocol PeriodStore
+  (configure [this period-millis]))
 
-(defprotocol PeriodRateLimiter
-  "Determines if the request is too soon. Returns true if no other requests have been made
-  in the period, false otherwise."
-  (try-update-key [this k]))
+(defrecord MemoryStore [ttl-cache]
+  PeriodStore
 
-(deftype InMemoryLimiter [ttl-cache]
-  PeriodRateLimiter
-  (try-update-key [this k]
-    (if (cache/has? @ttl-cache k)
+  (configure [this period-millis]
+    (assoc this :ttl-cache (atom (cache/ttl-cache-factory {} :ttl period-millis))))
+
+  core/RateLimiter
+
+  (try-make-request [this client-id]
+    (if (cache/has? @ttl-cache client-id)
       false
-      (swap! ttl-cache cache/miss k true))))
+      (swap! ttl-cache cache/miss client-id true))))
 
-(defn in-memory-limiter [ttl-millis]
-  (InMemoryLimiter.
-   (atom (cache/ttl-cache-factory {} :ttl ttl-millis))))
-
-(defn limit [handler limiter id-fn]
-  (fn [request]
-    (if-let [id (id-fn request)]
-      (if (try-update-key limiter id)
-        (handler request)
-        backoff-response)
-      (handler request))))
+(defn memory-backend []
+  (MemoryStore.
+   (atom (cache/ttl-cache-factory {}))))
 
 (declare update-expiration-time check-expiration add-expiration try-mc-request)
+
 (def ^:private cache-expiration-secs (* 5 60))
 
 (defn- next-request-time [mc-limitter now]
@@ -70,15 +66,24 @@
        (check-expiration mc-limitter client-id (tc/from-long expr-str) cas-id now)
        (add-expiration mc-limitter client-id now)))))
 
-(defrecord MemcachedLimiter [client period key-prefix]
-  PeriodRateLimiter
-  (try-update-key [this client-id]
+(defrecord MemcachedStore [client period key-prefix]
+  PeriodStore
+
+  (configure [this period-millis]
+    (assoc this :period (t/millis period-millis)))
+
+  core/RateLimiter
+
+  (try-make-request [this client-id]
     (try-mc-request this (str key-prefix client-id))))
 
-(defn memcached-limiter
-  ([client period-millis]
-   (memcached-limiter client period-millis {}))
-  ([client period-millis opts]
-   (MemcachedLimiter. client
-                      (t/millis period-millis)
-                      (get opts :key-prefix ""))))
+(defn memcached-backend
+  ([client]
+   (memcached-backend client {}))
+  ([client opts]
+   (MemcachedStore. client
+                    (t/millis 1)
+                    (get opts :key-prefix ""))))
+
+(defn every-millis [period-millis backend]
+  (configure backend period-millis))
