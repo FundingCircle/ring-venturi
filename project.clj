@@ -9,5 +9,6 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [clj-time "0.9.0"]
                  [org.clojure/core.cache "0.6.4"]
-                 [clojurewerkz/spyglass "1.0.0"]
+                 [clojurewerkz/spyglass "1.1.0"]
+                 [com.taoensso/carmine "2.11.1"]
                  [org.clojure/data.json "0.2.6"]])

@@ -1,33 +1,58 @@
 (ns ring-venturi.frequency-spec
-  (:require [ring-venturi.frequency :as frequency]
+  (:require [ring-venturi.frequency :as f]
+            [clj-time.core :as t]
             [speclj.core :refer :all]
+            [clojurewerkz.spyglass.client :as mc]
+            [clj-time.core :as t]
             speclj.run.standard))
 
-(describe "ring-venturi.frequency"
-  (with handler (constantly {:status 200}))
-  (with limiter (frequency/in-memory-limiter 1000))
-  (with app (frequency/limit @handler @limiter :id ))
-  (with request {:id 1})
+(describe "memcached-backend"
+  (with memcached-client (mc/text-connection "localhost:11211"))
+  (with rand-prefix (str (rand-int (java.lang.Integer/MAX_VALUE))))
+  (with limiter (f/per-second 2 (f/memcached-backend @memcached-client {:key-prefix @rand-prefix})))
+  (with memcached-req-key (str @rand-prefix "-123-2000-01-01T12:00:01:0"))
+  (with client-id "123")
 
-  (describe "the first request"
-    (it "gets through"
-        (should= 200 (:status (@app @request)))))
+  (around [it]
+    (with-redefs [t/now (constantly (t/date-time 2000 1 1 0 0 1))]
+      (it)))
 
-  (describe "a second request within the backoff"
-    (before (@app @request))
-    (it "is blocked"
-        (should= 429 (:status (@app @request)))))
+  (context "with no previous requests"
+    (it "accepts the request"
+      (should (.try-make-request @limiter @client-id)))
 
-  (describe "a second request after the backoff"
-    (before (do
-              (@app @request)
-              (Thread/sleep 1000)))
-    (it "gets through"
-        (should= 200 (:status (@app @request)))))
+    (it "saves the request count"
+      (should= "1"
+               (do
+                 (.try-make-request @limiter @client-id)
+                 (mc/get @memcached-client
+                         @memcached-req-key)))))
 
-  (describe "when request has no user"
-    (before (@app {}))
-    (it "gets through"
-        (should= 200 (:status (@app {}))))))
+  (context "with existing requests below limit"
+    (before
+      (.try-make-request @limiter @client-id))
+
+    (it "accepts the request"
+      (should (.try-make-request @limiter @client-id)))
+
+    (it "updates the request count"
+      (should= "2"
+               (do
+                 (.try-make-request @limiter @client-id)
+                 (mc/get @memcached-client
+                         @memcached-req-key)))))
+
+  (context "with existing requests at limit"
+    (before
+      (mc/set @memcached-client (str @rand-prefix "-123-2000-01-01T12:00:00:1") 1 "2"))
+
+    (it "rejects the request"
+      (should-not (.try-make-request @limiter @client-id)))
+
+    (it "does not update the request count"
+      (should-be-nil (do
+                       (.try-make-request @limiter @client-id)
+                       (mc/get @memcached-client
+                               @memcached-req-key))))))
 
 (run-specs)
