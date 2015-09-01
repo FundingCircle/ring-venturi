@@ -3,6 +3,7 @@
             [clj-time.core :as t]
             [ring-venturi.core :as core]
             [clj-time.coerce :as tc]
+            [taoensso.carmine :as car]
             [clojurewerkz.spyglass.client :as c]))
 
 (defprotocol PeriodStore
@@ -84,6 +85,25 @@
    (MemcachedStore. client
                     (t/millis 1)
                     (get opts :key-prefix ""))))
+
+(defrecord RedisStore [redis-opts key-prefix]
+  PeriodStore
+
+  (configure [this period-millis]
+    (assoc this :period-millis period-millis))
+
+  core/RateLimiter
+
+  (try-make-request [this client-id]
+    (let [redis-key (str key-prefix ":" client-id)
+          result (car/wcar redis-opts (car/set redis-key "LOCK" :PX (:period-millis this) :NX))]
+      (= "OK" result))))
+
+(defn redis-backend
+  ([redis-opts]
+   (redis-backend redis-opts {}))
+  ([redis-opts opts]
+   (RedisStore. redis-opts (get opts :key-prefix "rate-limit"))))
 
 (defn every-millis [period-millis backend]
   (configure backend period-millis))
