@@ -52,6 +52,7 @@ Supported backend include:
 
 * In memory: `(p/memory-backend)`
 * Memcached: `(p/memcached-backend memcached-client)`
+* Redis: `(p/redis-backend redis-connection-opts)`
 
 ## License
 
