@@ -39,7 +39,7 @@
       (with-redefs [t/now (constantly now)]
         (it))))
 
-  (describe "when cache is empty"
+  (context "when cache is empty"
     (it "is successful"
       (should (.try-make-request @limiter @cache-key)))
 
@@ -49,7 +49,7 @@
                  (.try-make-request @limiter @cache-key)
                  @saved-expir-time))))
 
-  (describe "when past the expiration time"
+  (context "when past the expiration time"
     (before
       @(c/set @memcached-client @cache-key 5 (tc/to-long (t/now))))
 
@@ -62,7 +62,7 @@
                  (.try-make-request @limiter @cache-key)
                  @saved-expir-time))))
 
-  (describe "when before the expiration time"
+  (context "when before the expiration time"
     (with expiration-time (seconds-from-now 10))
 
     (before
