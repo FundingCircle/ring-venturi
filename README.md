@@ -4,7 +4,7 @@ A Clojure library for rate limiting ring applications.
 
 ## Installation
 
-[![Clojars Project](http://clojars.org/ring-venturi/latest-version.svg)](http://clojars.org/ring-venturi)
+[![Clojars Project](http://clojars.org/fundingcircle/ring-venturi/latest-version.svg)](http://clojars.org/fundingcircle/ring-venturi)
 
 _WARNING: Alpha software, breaking changes ahead!_
 
