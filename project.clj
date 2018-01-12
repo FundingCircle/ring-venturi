@@ -1,4 +1,4 @@
-(defproject ring-venturi "0.2.1"
+(defproject fundingcircle/ring-venturi "0.2.2-SNAPSHOT"
   :description "Ring rate limiter"
   :url "https://github.com/FundingCircle/ring-venturi"
   :license {:name "BSD 3-clause"
@@ -10,4 +10,5 @@
                  [clj-time "0.14.2"]
                  [org.clojure/core.cache "0.6.5"]
                  [clojurewerkz/spyglass "1.2.0"]
-                 [org.clojure/data.json "0.2.6"]])
+                 [org.clojure/data.json "0.2.6"]]
+  :deploy-repositories [["releases" :clojars]])
